@@ -1,6 +1,6 @@
 # Juan Pablo Figueroa
 
-**AI Engineer con base de ingeniero de datos** · GCP Certified · Santiago, Chile
+**AI Engineer con base de ingeniero de datos** · Google Cloud Generative AI Leader · Santiago, Chile
 
 Diez años construyendo pipelines de datos en producción sobre GCP, y los dos
 últimos llevando sistemas de IA de prototipo a producción con métricas.
