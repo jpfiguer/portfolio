@@ -11,7 +11,7 @@ plataforma sin mezclar datos, con:
 
 - Gestion de contratos, citas, catalogo de productos
 - Portal de cliente para cada tenant
-- Firma electronica y PDFs generados
+- Firma electrónica y PDFs generados
 - Autenticacion moderna (passkeys)
 - Dashboards con graficos
 - Rate limiting por tenant
@@ -70,18 +70,18 @@ flowchart TB
 compile-time. El TypeScript compiler es el linter.
 
 **Costo**: acoplamiento cliente-servidor. No sirve para APIs publicas o mobile
-con SDK propio. Para SaaS internal donde el frontend y el backend estan en el
+con SDK propio. Para SaaS internal donde el frontend y el backend están en el
 mismo repo, es ideal.
 
 ### Drizzle ORM sobre Prisma
 
-Drizzle es mas cercano al SQL (mejor para queries complejas del CRM), tiene mejor
-performance en cold start, y sus types se propagan mas limpiamente al query builder.
+Drizzle es más cercano al SQL (mejor para queries complejas del CRM), tiene mejor
+performance en cold start, y sus types se propagan más limpiamente al query builder.
 
-### Aislamiento multi-tenant desde el dia 1
+### Aislamiento multi-tenant desde el día 1
 
 Cada tabla tiene `tenantId` como columna obligatoria. Middleware inyecta el
-`tenantId` desde la sesion en cada query. Tests specific que:
+`tenantId` desde la sesión en cada query. Tests specific que:
 
 - Un usuario del tenant A no ve datos del tenant B
 - Un admin del tenant A no puede escribir a tabla del tenant B via ID directo
@@ -95,23 +95,23 @@ Los tenants B2B agradecen no manejar recuperacion de password.
 ### Rate limiting por tenant
 
 `@upstash/ratelimit` con clave `${tenantId}:${route}`. Un tenant abusivo no
-afecta a los demas. Configuracion por plan (free/pro/enterprise).
+afecta a los demas. Configuración por plan (free/pro/enterprise).
 
 ### Tests
 
 - **Vitest** para unit (~200 tests)
-- **Playwright** para E2E (~30 flows criticos: login, alta cliente, contrato, cita, factura)
+- **Playwright** para E2E (~30 flows críticos: login, alta cliente, contrato, cita, factura)
 - **Testing Library** para componentes UI aislados
 
 ### Generacion de PDF con `@react-pdf/renderer`
 
 Componentes React que renderean a PDF. Reutilizamos el design system del UI web.
-Alternativa a Puppeteer: mas rapido, sin browser en runtime.
+Alternativa a Puppeteer: más rápido, sin browser en runtime.
 
 ## Anti-patterns evitados
 
-- ❌ **Schema-per-tenant en PostgreSQL**: se rompe rapido a escala (migraciones N veces)
-- ❌ **Row-level security como unica capa**: buena defense-in-depth pero fragil como unica linea
+- ❌ **Schema-per-tenant en PostgreSQL**: se rompe rápido a escala (migraciones N veces)
+- ❌ **Row-level security como única capa**: buena defense-in-depth pero fragil como única linea
 - ❌ **REST + fetch sin tipos generados**: contrato de facto que se rompe silenciosamente
 - ❌ **Passwords sin passkeys en 2026**: los tenants B2B lo notan
 
@@ -129,7 +129,7 @@ Alternativa a Puppeteer: mas rapido, sin browser en runtime.
 - Vitest + Playwright + Testing Library
 - Tailwind + shadcn/ui + Radix
 
-## Codigo de referencia sintetico
+## Código de referencia sintético
 
 Ver [`multi-tenant-saas-starter`](https://github.com/jpfiguer/multi-tenant-saas-starter):
 
@@ -140,6 +140,6 @@ Ver [`multi-tenant-saas-starter`](https://github.com/jpfiguer/multi-tenant-saas-
 
 ## Lecciones
 
-- **El middleware que inyecta `tenantId` es la unica cosa que no se debe poder saltar**: escribir tests especificos para atacarlo
-- **Rate limit por tenant desde el dia 1**: mas facil que sumar despues
+- **El middleware que inyecta `tenantId` es la única cosa que no se debe poder saltar**: escribir tests especificos para atacarlo
+- **Rate limit por tenant desde el día 1**: más fácil que sumar después
 - **Passkeys son un vendedor**: los tenants los notan positivamente

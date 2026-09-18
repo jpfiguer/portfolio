@@ -1,8 +1,8 @@
-# Adapter pattern para integracion con el servicio tributario chileno
+# Adapter pattern para integración con el servicio tributario chileno
 
 > API interna FastAPI para extraer el registro de compras y ventas del servicio
 > tributario chileno. Adapter intercambiable entre proveedor comercial y
-> conexion directa via variable de entorno, sin cambiar el contrato downstream.
+> conexión directa via variable de entorno, sin cambiar el contrato downstream.
 
 ## Problema
 
@@ -17,9 +17,9 @@ Restricciones:
   costos que crecen con volumen
 - Cambiar de un enfoque al otro no debe romper a los consumidores downstream
 
-## Solucion: patron adapter
+## Solución: patron adapter
 
-Una unica interfaz `SiiAdapter` con dos implementaciones intercambiables por
+Una única interfaz `SiiAdapter` con dos implementaciones intercambiables por
 variable de entorno. El contrato publico `{ meta, data }` es invariante.
 
 ```mermaid
@@ -56,7 +56,7 @@ normalizan su fuente al modelo canonico.
 
 `CACHE_BACKEND=memory|redis`. El adapter no sabe cual esta. `CachePort` con
 implementaciones `MemoryCache` y `RedisCache`. Mismo trick que el adapter
-principal — se cambia sin tocar el codigo de negocio.
+principal — se cambia sin tocar el código de negocio.
 
 ### API key en todos los endpoints excepto `/health`
 
@@ -77,7 +77,7 @@ activo). Cada log line es JSON. Ingesta a un stack de observabilidad.
 ### Deploy con Coolify
 
 Coolify es un PaaS self-hosted. Docker + docker-compose para local, mismo
-`Dockerfile` en produccion. Deploy via push a Git.
+`Dockerfile` en producción. Deploy via push a Git.
 
 ## Anti-patterns evitados
 
@@ -85,13 +85,13 @@ Coolify es un PaaS self-hosted. Docker + docker-compose para local, mismo
 - ❌ **Cache "por si acaso"**: solo cacheo lo que tiene sentido con TTL claro
 - ❌ **Tests que llaman al servicio real**: costoso, flaky, mata el CI
 
-## Codigo de referencia sintetico
+## Código de referencia sintético
 
 El patron esta reproducido en `rag-crag-reference` (circuit breaker + adapter
-para rerankers) y como codigo standalone en el repo umbrella.
+para rerankers) y como código standalone en el repo umbrella.
 
 ## Lecciones
 
 - **Un adapter permite migrar sin dolor**: MVP con comercial, control con directo, sin romper consumidores
-- **Fixtures sinteticas > mocks reales**: son mas rapidas, mas legibles y no dependen de credenciales
+- **Fixtures sinteticas > mocks reales**: son más rápidas, más legibles y no dependen de credenciales
 - **structlog te salva** cuando el bug es multi-adapter y hay que trazar cual fue

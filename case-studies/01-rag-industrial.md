@@ -1,26 +1,27 @@
 # RAG industrial con doble juez y circuit breaker
 
-> Sistema RAG on-premise para un cliente industrial europeo. En produccion,
-> uso diario, con metricas medibles.
+> Sistema RAG on-premise para un cliente industrial europeo. En producción,
+> uso diario, con métricas medibles.
 
 ## Problema
 
-El cliente tiene manuales tecnicos de maquinaria industrial (miles de paginas,
-mezcla de nativos y escaneos). Los operarios necesitan respuestas rapidas y
+El cliente tiene manuales técnicos de maquinaria industrial (miles de páginas,
+mezcla de nativos y escaneos). Los operarios necesitan respuestas rápidas y
 correctas — un asistente que **no invente**.
 
 Restricciones:
 
 - On-premise (dato sensible dentro de la red del cliente)
 - Multi-idioma
-- Debe manejar tablas, diagramas, imagenes de tablets
-- Debe rendir cuentas: metricas de alucinacion publicables
+- Debe manejar tablas, diagramas, imágenes de tablets
+- Debe rendir cuentas: métricas de calidad publicables y reproducibles
 - Requiere trazabilidad: cada respuesta con cita a fuente
 
-## Metricas en produccion
+## Métricas en producción
 
-- **2,2% alucinacion en retrieval interno** (medido con Ragas)
-- **100% de correcciones historicas del supervisor resueltas o mejoradas**
+- **Faithfulness 0,96 mediana** (0,86 media) y **context precision 0,997**, medidos
+  con RAGAS sobre tráfico real y capturados semanalmente como baselines versionados
+- **100% de correcciones históricas del supervisor resueltas o mejoradas**
 - **0 regresiones** en el set de fallos conocidos
 - **Feedback negativo reducido casi a la mitad** vs baseline sin CRAG
 
@@ -67,7 +68,7 @@ bloque cacheado (TTL 5 min), solo cambia el chunk. Re-ingesta de 1.500 chunks
 en ~15 min por ~$1. Ahorro reportado: −49% retrievals fallidos solo, −67% con
 reranking encima.
 
-**Fallback**: OpenAI gpt-4o-mini (sin cache nativo de 5 min, mas lento).
+**Fallback**: OpenAI gpt-4o-mini (sin cache nativo de 5 min, más lento).
 
 ### Reranking con circuit breaker
 
@@ -79,12 +80,12 @@ abren el breaker. `_RECOVERY_WINDOW_S=60s` antes del probe. Threading:
 state a nivel modulo compartido entre asyncio tasks, un lock. No requiere
 estado cross-process — cada worker cura solo.
 
-**Resultado**: latencia en modo degradado bajo de 5s/query a ~0ms (skip explicito
+**Resultado**: latencia en modo degradado bajó de 5s/query a ~0ms (skip explícito
 hasta el probe).
 
-**Migracion**: Cohere v3.5 multilingual → Voyage rerank-2.5-lite (+6-8% en 31 idiomas
-segun benchmarks internos, 200M tokens free tier). El fallback local (cross-encoder
-en CPU) siempre disponible como ultimo recurso.
+**Migración**: Cohere v3.5 multilingual → Voyage rerank-2.5-lite (+6-8% en 31 idiomas
+según benchmarks internos, 200M tokens free tier). El fallback local (cross-encoder
+en CPU) siempre disponible como último recurso.
 
 ### CRAG con doble juez OpenAI + Claude
 
@@ -100,7 +101,7 @@ no el corpus.
 **Problema**: el reranker scorea similitud pero no razona si el chunk **responde**
 la pregunta. Chunks de otro documento con vocabulario parecido se cuelan.
 
-**Fix**: scorer LLM 0-3 por chunk despues del reranker. UNA llamada batched (no
+**Fix**: scorer LLM 0-3 por chunk después del reranker. UNA llamada batched (no
 1-por-chunk), un scorer (no scorer + critic). Default `min_score=1`: solo descarta el 0.
 
 **Ojo**: la ganancia del paper ChunkRAG (NAACL SRW 2025) es grande en fact-lookup
@@ -110,16 +111,16 @@ antes de activar. **Medir antes de shippear**.
 
 ### 4 pipelines CI/CD separados
 
-- **tests**: unit + integracion
+- **tests**: unit + integración
 - **security**: scans de dependencias, CVE, secretos
 - **regression**: set de fallos conocidos del supervisor, cualquier regresion bloquea merge
 - **eval**: Ragas (faithfulness, answer relevancy, context precision/recall) + gold set
 
 ## Anti-patterns que evitamos
 
-- ❌ **Hybrid retrieval sin medir**: lo probamos, bajo la calidad −15,4% en nuestro corpus. Fuera.
+- ❌ **Hybrid retrieval sin medir**: lo probamos, bajó la calidad −15,4% en nuestro corpus. Fuera.
 - ❌ **Un solo juez**: bias del proveedor no detectable
-- ❌ **Reranker unico sin fallback**: la outage de Cohere lo demostro
+- ❌ **Reranker único sin fallback**: la outage de Cohere lo demostro
 - ❌ **Chunk fancy sin baseline**: agrego complejidad, gano marginal
 
 ## Stack
@@ -131,9 +132,9 @@ antes de activar. **Medir antes de shippear**.
 **Operacion**: Docker + docker-compose · nginx · Sentry · Prometheus · OpenTelemetry
 **Multilingual**: fastText lid.218 + lingua-language-detector (secondary)
 
-## Codigo de referencia sintetico
+## Código de referencia sintético
 
-Los patrones estan reproducidos en [`rag-crag-reference`](https://github.com/jpfiguer/rag-crag-reference):
+Los patrones están reproducidos en [`rag-crag-reference`](https://github.com/jpfiguer/rag-crag-reference):
 
 - `circuit_breaker.py` — el patron completo con tests
 - `crag_dual_judge.py` — orquestacion de los dos jueces con consenso
@@ -141,8 +142,8 @@ Los patrones estan reproducidos en [`rag-crag-reference`](https://github.com/jpf
 
 ## Lecciones que me llevo
 
-- **Falla silenciosa = bug mas caro**: subimos el timeout de Mistral OCR de 180s a
-  300s porque manuales de 140+ paginas escaneadas quedaban sin indexar en silencio.
+- **Falla silenciosa = bug más caro**: subimos el timeout de Mistral OCR de 180s a
+  300s porque manuales de 140+ páginas escaneadas quedaban sin indexar en silencio.
 - **Bug real por Unicode**: "¿Qué hora es?" contestaba con info del panel Ferroli
   porque los patterns no normalizaban NFD. "que hora es" (sin acento) funcionaba.
   Fix: normalizar antes del regex.
