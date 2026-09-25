@@ -136,7 +136,7 @@ antes de activar. **Medir antes de shippear**.
 
 - **Falla silenciosa = bug más caro**: subimos el timeout de Mistral OCR de 180s a
   300s porque manuales de 140+ páginas escaneadas quedaban sin indexar en silencio.
-- **Bug real por Unicode**: "¿Qué hora es?" contestaba con info del panel Ferroli
+- **Bug real por Unicode**: "¿Qué hora es?" contestaba con info de un panel de control
   porque los patterns no normalizaban NFD. "que hora es" (sin acento) funcionaba.
   Fix: normalizar antes del regex.
 - **A veces el fix es no llamar al LLM**: llama3:8b no respeta la instruccion de

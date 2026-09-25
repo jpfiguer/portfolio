@@ -26,9 +26,9 @@ variable de entorno. El contrato publico `{ meta, data }` es invariante.
 flowchart LR
   A[Cliente interno] --> B[FastAPI endpoints<br/>GET /ventas, /gastos, /documentos]
   B --> C{SiiAdapter<br/>interfaz}
-  C -->|SII_ADAPTER=commercial| D[Adapter comercial<br/>SimpleAPI]
+  C -->|SII_ADAPTER=commercial| D[Adapter comercial]
   C -->|SII_ADAPTER=direct| E[Adapter directo<br/>portal SII + certificado]
-  D --> F[API comercial]
+  D --> F[API de un proveedor comercial]
   E --> G[Portal servicio tributario<br/>con certificado .pfx]
   D & E --> H[Envelope respuesta<br/>meta + data]
   H --> B
