@@ -1,10 +1,11 @@
-# Adapter pattern para integración con el servicio tributario chileno
+# Patrón adapter para integrarse con el servicio tributario chileno
 
-> API interna FastAPI para extraer el registro de compras y ventas del servicio
-> tributario chileno. Adapter intercambiable entre proveedor comercial y
-> conexión directa via variable de entorno, sin cambiar el contrato downstream.
+> API interna en FastAPI para extraer el registro de compras y ventas del
+> servicio tributario chileno. Un adapter permite cambiar entre un proveedor
+> comercial y la conexión directa con una variable de entorno, sin tocar el
+> contrato con los consumidores.
 
-## Problema
+## Contexto
 
 Necesitábamos el registro de compras y ventas del servicio tributario para
 varios flujos internos: facturación, contabilidad y cumplimiento normativo.
@@ -14,14 +15,14 @@ Restricciones:
 - El servicio tributario no ofrece una API pública documentada para este
   registro. La vía directa es su portal web, autenticado con certificado
   digital.
-- Los proveedores comerciales son rapidos al MVP pero tienen rate limits y
-  costos que crecen con volumen
-- Cambiar de un enfoque al otro no debe romper a los consumidores downstream
+- Los proveedores comerciales permiten llegar rápido a un MVP, pero tienen
+  rate limits y costos que crecen con el volumen.
+- Pasar de un enfoque al otro no puede romper a los consumidores downstream.
 
-## Solución: patron adapter
+## Solución: patrón adapter
 
-Una única interfaz `SiiAdapter` con dos implementaciones intercambiables por
-variable de entorno. El contrato publico `{ meta, data }` es invariante.
+Una sola interfaz, `SiiAdapter`, con dos implementaciones que se eligen por
+variable de entorno. El contrato público `{ meta, data }` no cambia.
 
 ```mermaid
 flowchart LR
@@ -35,59 +36,67 @@ flowchart LR
   H --> B
   B --> A
 
-  I[Cache Redis/memory] -.-> B
+  I[Cache Redis/memoria] -.-> B
   J[API-Key middleware] -.-> B
 ```
 
-## Decisiones clave
+## Detalles de implementación
 
-### Contrato publico invariante
+### Un contrato público estable
 
-Envelope `{ meta, data }` con `meta.fuente` indicando el adapter activo. Los
-consumidores no necesitan saber cual esta corriendo. Cambio = variable de
-entorno.
+El envelope `{ meta, data }` indica en `meta.fuente` qué adapter está activo,
+aunque los consumidores no necesitan saberlo. Cambiar de adapter es cambiar una
+variable de entorno.
 
 ### Pydantic v2 como fuente de verdad
 
-`DocumentoTributario`, `Meta`, `Envelope` son modelos Pydantic que validan
-tanto la salida de los adapters como la respuesta al cliente. Los adapters
-normalizan su fuente al modelo canonico.
+`DocumentoTributario`, `Meta` y `Envelope` son modelos Pydantic que validan
+tanto la salida de los adapters como la respuesta al cliente. Cada adapter
+normaliza su fuente al modelo canónico.
 
-### Cache con abstraccion
+### Caché detrás de una interfaz
 
-`CACHE_BACKEND=memory|redis`. El adapter no sabe cual esta. `CachePort` con
-implementaciones `MemoryCache` y `RedisCache`. Mismo trick que el adapter
-principal — se cambia sin tocar el código de negocio.
+`CACHE_BACKEND=memory|redis` elige la implementación de `CachePort`:
+`MemoryCache` o `RedisCache`. El adapter no sabe cuál está activa. Es la misma
+idea del adapter principal: se cambia sin tocar el código de negocio.
 
-### API key en todos los endpoints excepto `/health`
+### API key en todos los endpoints salvo `/health`
 
-Header `X-API-Key`. Middleware simple. `/health` publico para orchestration
-(k8s, ELB) que hace probes.
+Header `X-API-Key`, validado por un middleware simple. `/health` queda público
+para los probes de orquestadores y balanceadores (k8s, ELB).
 
 ### Tests con `respx`
 
-`respx` mockea httpx a nivel de request. Los tests corren offline, no tocan
-el servicio tributario ni el proveedor comercial. Fixtures sinteticas
-reproducen respuestas reales. **Nunca contiene datos reales.**
+`respx` simula httpx a nivel de request, así que los tests corren offline, sin
+tocar el servicio tributario ni el proveedor comercial. Las fixtures son
+sintéticas: reproducen la forma de las respuestas reales y nunca contienen
+datos reales.
 
-### Structured logging
+### Logs estructurados
 
-`structlog` con contexto propagado (request_id, tenant_id opcional, adapter
-activo). Cada log line es JSON. Ingesta a un stack de observabilidad.
+`structlog` con contexto propagado (`request_id`, `tenant_id` opcional y
+adapter activo). Cada línea de log es JSON y se envía a un stack de
+observabilidad.
 
-### Deploy con Coolify
+### Despliegue con Coolify
 
-Coolify es un PaaS self-hosted. Docker + docker-compose para local, mismo
-`Dockerfile` en producción. Deploy via push a Git.
+Coolify es un PaaS autoalojado. En local se usa Docker con docker-compose, y en
+producción, el mismo `Dockerfile`. Cada push a Git gatilla un despliegue.
 
-## Anti-patterns evitados
+## Prácticas descartadas
 
-- ❌ **Acoplar el cliente al proveedor**: si el proveedor cambia formato, rompe todo
-- ❌ **Cache "por si acaso"**: solo cacheo lo que tiene sentido con TTL claro
-- ❌ **Tests que llaman al servicio real**: costoso, flaky, mata el CI
+- **Acoplar el cliente al proveedor**: si el proveedor cambia el formato, se
+  rompen todos los consumidores.
+- **Cachear "por si acaso"**: solo se cachea lo que tiene sentido, con un TTL
+  claro.
+- **Tests que llaman al servicio real**: son caros e inestables, y vuelven
+  frágil el CI.
 
-## Lecciones
+## Lo que me llevo
 
-- **Un adapter permite migrar sin dolor**: MVP con comercial, control con directo, sin romper consumidores
-- **Fixtures sinteticas > mocks reales**: son más rápidas, más legibles y no dependen de credenciales
-- **structlog te salva** cuando el bug es multi-adapter y hay que trazar cual fue
+- **Un adapter permite migrar sin dolor**: el proveedor comercial sirve para el
+  MVP y la conexión directa da más control, sin romper a los consumidores.
+- **Mejor fixtures sintéticas que mocks con datos reales**: son más rápidas,
+  más legibles y no dependen de credenciales.
+- **Los logs estructurados ahorran tiempo** cuando un bug cruza varios adapters
+  y hay que rastrear cuál falló.

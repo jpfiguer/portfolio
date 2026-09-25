@@ -1,27 +1,28 @@
-# SaaS multi-tenant type-safe end-to-end
+# SaaS multi-tenant type-safe de punta a punta
 
-> CRM para empresas de servicios en Espana. Reconstruccion completa en una v2
-> con arquitectura type-safe end-to-end.
+> CRM para empresas de servicios en España. La v2 es una reconstrucción
+> completa, con tipos compartidos de punta a punta entre backend y frontend.
 
-## Problema
+## Requisitos
 
-Empresas de instalacion y mantenimiento (agua, climatizacion, fotovoltaica,
-alarmas, fontaneria) necesitan un CRM que soporte muchas empresas en la misma
-plataforma sin mezclar datos, con:
+Empresas de instalación y mantenimiento (agua, climatización, fotovoltaica,
+alarmas, fontanería) necesitan un CRM en el que muchas empresas compartan la
+plataforma sin mezclar sus datos, con:
 
-- Gestion de contratos, citas, catalogo de productos
+- Gestión de contratos, citas y catálogo de productos
 - Portal de cliente para cada tenant
-- Firma electrónica y PDFs generados
-- Autenticacion moderna (passkeys)
-- Dashboards con graficos
+- Firma electrónica y generación de PDF
+- Autenticación con passkeys
+- Dashboards con gráficos
 - Rate limiting por tenant
 
 Restricciones:
 
-- Aislamiento estricto de datos por tenant
-- Cambios en backend deben romper el frontend en compile-time (no en runtime)
-- Tests E2E que prueben aislamiento explicitamente
-- Deploy en un proveedor cloud-native
+- Aislamiento estricto de datos entre tenants
+- Los cambios incompatibles del backend tienen que detectarse al compilar el
+  frontend
+- Tests E2E que prueben el aislamiento de forma explícita
+- Despliegue en un proveedor cloud-native
 
 ## Arquitectura
 
@@ -62,75 +63,86 @@ flowchart TB
   B -.-> J
 ```
 
-## Decisiones clave
+## Decisiones
 
-### tRPC end-to-end type-safe
+### tRPC con tipos de punta a punta
 
-**Beneficio**: cambiar la firma de un procedure en el backend rompe el cliente en
-compile-time. El TypeScript compiler es el linter.
+**Beneficio**: si cambia la firma de un procedure en el backend, el cliente
+deja de compilar. El compilador de TypeScript hace de linter del contrato.
 
-**Costo**: acoplamiento cliente-servidor. No sirve para APIs publicas o mobile
-con SDK propio. Para SaaS internal donde el frontend y el backend están en el
-mismo repo, es ideal.
+**Costo**: acopla cliente y servidor, así que no sirve para APIs públicas ni
+para apps móviles con SDK propio. En un SaaS con frontend y backend en el mismo
+repositorio, como este, encaja bien.
 
-### Drizzle ORM sobre Prisma
+### Drizzle ORM en vez de Prisma
 
-Drizzle es más cercano al SQL (mejor para queries complejas del CRM), tiene mejor
-performance en cold start, y sus types se propagan más limpiamente al query builder.
+Drizzle está más cerca del SQL, lo que ayuda con las consultas complejas del
+CRM. Además tiene mejor rendimiento en cold start y sus tipos se propagan con
+más limpieza al query builder.
 
-### Aislamiento multi-tenant desde el día 1
+### Aislamiento multi-tenant desde el primer día
 
-Cada tabla tiene `tenantId` como columna obligatoria. Middleware inyecta el
-`tenantId` desde la sesión en cada query. Tests specific que:
+Cada tabla tiene `tenantId` como columna obligatoria, y un middleware lo inyecta
+desde la sesión en cada consulta. Hay tests específicos que comprueban que:
 
-- Un usuario del tenant A no ve datos del tenant B
-- Un admin del tenant A no puede escribir a tabla del tenant B via ID directo
-- Cambios de tenant emiten evento de auditoria
+- un usuario del tenant A no ve datos del tenant B;
+- un admin del tenant A no puede escribir en tablas del tenant B con un ID
+  directo;
+- los cambios de tenant emiten un evento de auditoría.
 
-### WebAuthn / passkeys en lugar de password
+### WebAuthn y passkeys en lugar de contraseñas
 
-`@simplewebauthn/browser` + `@simplewebauthn/server` integrados con NextAuth.
-Los tenants B2B agradecen no manejar recuperacion de password.
+`@simplewebauthn/browser` y `@simplewebauthn/server`, integrados con NextAuth.
+Los tenants B2B agradecen no tener que gestionar la recuperación de
+contraseñas.
 
 ### Rate limiting por tenant
 
-`@upstash/ratelimit` con clave `${tenantId}:${route}`. Un tenant abusivo no
-afecta a los demas. Configuración por plan (free/pro/enterprise).
+`@upstash/ratelimit` con la clave `${tenantId}:${route}`. Un tenant que abusa
+no afecta a los demás, y los límites se configuran por plan (free, pro,
+enterprise).
 
 ### Tests
 
 - **Vitest** para tests unitarios
-- **Playwright** para E2E de los flujos críticos: login, alta de cliente, contrato, cita y factura
-- **Testing Library** para componentes UI aislados
+- **Playwright** para E2E de los flujos críticos: login, alta de cliente,
+  contrato, cita y factura
+- **Testing Library** para componentes de UI aislados
 
-### Generacion de PDF con `@react-pdf/renderer`
+### PDF con `@react-pdf/renderer`
 
-Componentes React que renderean a PDF. Reutilizamos el design system del UI web.
-Alternativa a Puppeteer: más rápido, sin browser en runtime.
+Los PDF se generan con componentes React que reutilizan el design system de la
+interfaz web. Frente a Puppeteer es más rápido y no necesita un navegador en
+runtime.
 
-## Anti-patterns evitados
+## Enfoques descartados
 
-- ❌ **Schema-per-tenant en PostgreSQL**: se rompe rápido a escala (migraciones N veces)
-- ❌ **Row-level security como única capa**: buena defense-in-depth pero fragil como única linea
-- ❌ **REST + fetch sin tipos generados**: contrato de facto que se rompe silenciosamente
-- ❌ **Passwords sin passkeys en 2026**: los tenants B2B lo notan
+- **Un schema por tenant en PostgreSQL**: escala mal, porque cada migración se
+  repite una vez por tenant.
+- **Row-level security como única capa**: sirve como defensa en profundidad,
+  pero es frágil como única barrera.
+- **REST con fetch y sin tipos generados**: el contrato queda implícito y se
+  rompe sin avisar.
+- **Solo contraseñas, sin passkeys**: los tenants B2B lo notan.
 
 ## Stack
 
-- Next.js (App Router + Server Actions)
+- Next.js (App Router y Server Actions)
 - tRPC + React Query
 - Drizzle ORM + PostgreSQL (Neon serverless)
 - NextAuth + `@simplewebauthn/*`
-- Upstash Redis (rate limit)
+- Upstash Redis (rate limiting)
 - Vercel Blob (archivos)
-- `@react-pdf/renderer` (PDFs)
-- Resend (emails)
+- `@react-pdf/renderer` (PDF)
+- Resend (correos)
 - Sentry + Vercel Analytics
 - Vitest + Playwright + Testing Library
 - Tailwind + shadcn/ui + Radix
 
-## Lecciones
+## Lo que aprendí
 
-- **El middleware que inyecta `tenantId` es la única cosa que no se debe poder saltar**: escribir tests especificos para atacarlo
-- **Rate limit por tenant desde el día 1**: más fácil que sumar después
-- **Passkeys son un vendedor**: los tenants los notan positivamente
+- **Nada debe poder saltarse el middleware que inyecta `tenantId`**: por eso
+  tiene tests específicos que intentan atacarlo.
+- **Rate limiting por tenant desde el primer día**: es más fácil que agregarlo
+  después.
+- **Las passkeys son un argumento de venta**: los tenants las valoran.

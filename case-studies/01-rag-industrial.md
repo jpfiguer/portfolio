@@ -4,22 +4,23 @@
 > Corre en la infraestructura del cliente, con GPU, y está en producción con
 > uso diario.
 
-## Problema
+## Contexto
 
-El cliente tiene manuales técnicos de maquinaria industrial (miles de páginas,
-mezcla de nativos y escaneos). Los operarios necesitan respuestas rápidas y
-correctas — un asistente que **no invente**.
+El cliente tiene manuales técnicos de maquinaria industrial: miles de páginas,
+entre documentos nativos y escaneados. Los operarios necesitan respuestas
+rápidas y correctas de un asistente que **no invente**.
 
 Restricciones:
 
 - Despliegue en la infraestructura del cliente, con GPU. El OCR, la
   contextualización de chunks, el reranking y los jueces usan APIs externas.
-- Multi-idioma
-- Debe manejar tablas, diagramas, imágenes de tablets
-- Debe rendir cuentas: métricas de calidad publicables y reproducibles
-- Requiere trazabilidad: cada respuesta con cita a fuente
+- Varios idiomas.
+- Tiene que manejar tablas, diagramas e imágenes tomadas con las tablets.
+- Tiene que rendir cuentas con métricas de calidad publicables y
+  reproducibles.
+- Trazabilidad: cada respuesta cita su fuente.
 
-## Métricas en producción
+## Métricas de calidad
 
 Medidas con RAGAS sobre tráfico real de producción y capturadas semanalmente
 como baselines versionados:
@@ -42,7 +43,7 @@ flowchart LR
   D --> E[Embedding]
   E --> F[(Qdrant<br/>vector DB)]
 
-  G[Query operario] --> H[Embedding query]
+  G[Consulta del operario] --> H[Embedding de la consulta]
   H --> F
   F --> I[Top-k 20]
   I --> J[Rerank Voyage<br/>circuit breaker]
@@ -58,15 +59,16 @@ flowchart LR
   P --> R[Respuesta + citas]
 ```
 
-## Decisiones clave con rationale
+## Decisiones de diseño
 
-### Contextual Retrieval (Anthropic-style)
+### Contextual retrieval (técnica de Anthropic)
 
-**Problema**: los chunks pequenios pierden contexto. "Apretar el perno M8 a 22 Nm"
-sin decir de que maquina o seccion.
+**Problema**: los chunks pequeños pierden contexto. "Apretar el perno M8 a 22 Nm"
+no dice de qué máquina ni de qué sección se trata.
 
-**Fix**: antes de embedear cada chunk, un LLM chico genera 50-100 tokens de
-"anclaje situacional" (donde vive el chunk en el documento).
+**Solución**: antes de generar el embedding de cada chunk, un modelo pequeño
+escribe entre 50 y 100 tokens de "anclaje situacional", que indican dónde está
+el chunk dentro del documento.
 
 **Costo**: usamos Claude Haiku con **prompt caching**. El documento va en el
 bloque cacheado (TTL de 5 minutos) y en cada llamada solo cambia el chunk, así
@@ -83,13 +85,15 @@ automática y sin que haya que marcar bloques.
 
 ### Reranking con circuit breaker
 
-**Trigger real**: outage de Cohere el 2026-05-02. Cada query pagaba 5s de timeout
-retry antes de fallar al fallback.
+**Qué lo gatilló**: una caída de Cohere el 2 de mayo de 2026. Cada consulta
+esperaba un timeout de 5 segundos, con reintento, antes de pasar al fallback.
 
-**Fix**: circuit breaker por proveedor. `_FAIL_THRESHOLD=3` fallos en `_FAIL_WINDOW_S=30s`
-abren el breaker. `_RECOVERY_WINDOW_S=60s` antes del probe. Threading:
-state a nivel modulo compartido entre asyncio tasks, un lock. No requiere
-estado cross-process — cada worker cura solo.
+**Solución**: un circuit breaker por proveedor. `_FAIL_THRESHOLD=3` fallos
+dentro de `_FAIL_WINDOW_S=30` segundos abren el breaker, y después de
+`_RECOVERY_WINDOW_S=60` segundos se deja pasar una consulta de prueba. El
+estado vive a nivel de módulo, compartido entre las tareas de asyncio y
+protegido por un lock. No hace falta estado compartido entre procesos, porque
+cada worker se recupera por su cuenta.
 
 **Resultado**: mientras el breaker está abierto, las consultas pasan directo al
 siguiente proveedor, sin esperar el timeout, hasta que la consulta de prueba
@@ -100,27 +104,32 @@ rerank-2.5-lite, por calidad multilingüe y por costo. Cohere quedó como
 fallback, y un cross-encoder local en CPU está siempre disponible como último
 recurso.
 
-### CRAG con doble juez OpenAI + Claude
+### CRAG con dos jueces, OpenAI y Claude
 
-**Por que dos jueces**: uno solo tiene su propio bias. Dos jueces de familias distintas
-bajan el sesgo. Cuando disienten, tenemos senal de "duda" — mejor rechazar/reintentar
-que emitir con baja confianza.
+**Por qué dos jueces**: un solo juez arrastra el sesgo de su proveedor. Dos
+jueces de familias distintas lo reducen, y cuando no coinciden dan una señal de
+duda. En ese caso es preferible rechazar o reintentar que emitir una respuesta
+con baja confianza.
 
-**Costo**: pequenio. El juez ve solo el contexto ya filtrado + la respuesta candidata,
-no el corpus.
+**Costo**: bajo, porque los jueces ven solo el contexto ya filtrado y la
+respuesta candidata, sin el corpus.
 
-### Chunk-level gating post-rerank (feature-flagged, eval-gated)
+### Filtro de chunks después del reranking
 
-**Problema**: el reranker scorea similitud pero no razona si el chunk **responde**
-la pregunta. Chunks de otro documento con vocabulario parecido se cuelan.
+**Problema**: el reranker puntúa similitud, pero no evalúa si el chunk
+**responde** la pregunta. Se cuelan chunks de otros documentos con vocabulario
+parecido.
 
-**Fix**: scorer LLM 0-3 por chunk después del reranker. UNA llamada batched (no
-1-por-chunk), un scorer (no scorer + critic). Default `min_score=1`: solo descarta el 0.
+**Solución**: después del reranker, un LLM asigna a cada chunk un puntaje de 0
+a 3. Es una sola llamada con todos los chunks, en vez de una por chunk, y un
+solo evaluador, sin un crítico adicional. Con el valor por defecto,
+`min_score=1`, solo se descartan los chunks con puntaje 0.
 
-**Ojo**: la ganancia del paper ChunkRAG (NAACL SRW 2025) es grande en fact-lookup
-corto pero casi nula en respuestas largas. Nadie valido sobre cross-document leakage
-en manuales industriales. Por eso va detras de flag y se A/B testea contra gold
-antes de activar. **Medir antes de shippear**.
+**Ojo**: la mejora que reporta el paper ChunkRAG (NAACL SRW 2025) es grande en
+preguntas factuales cortas y casi nula en respuestas largas, y no encontré
+evaluaciones sobre chunks que se cuelan desde otros documentos en manuales
+industriales. Por eso queda detrás de un feature flag y se compara contra el
+gold set antes de activarlo.
 
 ### Cinco workflows de CI
 
@@ -132,30 +141,37 @@ antes de activar. **Medir antes de shippear**.
 - **Seguridad**: escaneo de dependencias, CVE y secretos.
 - **Captura de baseline**: guarda las métricas como baselines versionados.
 
-## Anti-patterns que evitamos
+## Lo que descartamos
 
-- ❌ **Búsqueda híbrida sin medir**: la probamos y en este corpus empeoró la
+- **Búsqueda híbrida sin medir**: la probamos y en este corpus empeoró la
   calidad, así que quedó fuera.
-- ❌ **Un solo juez**: bias del proveedor no detectable
-- ❌ **Reranker único sin fallback**: la outage de Cohere lo demostro
-- ❌ **Chunk fancy sin baseline**: agrego complejidad, gano marginal
+- **Un solo juez**: el sesgo de su proveedor pasa inadvertido.
+- **Un reranker sin fallback**: la caída de Cohere mostró lo que cuesta.
+- **Chunking sofisticado sin baseline**: sumó complejidad para una ganancia
+  marginal.
 
 ## Stack
 
-**Backend**: FastAPI · Celery + Redis · Pydantic v2 · structlog
-**Vector DB**: Qdrant (autoalojado, filtrable por metadata)
-**Modelos**: OpenAI GPT (juez 1) · Claude Haiku (juez 2 + contextual retrieval con cache) · Mistral OCR · Voyage rerank-2.5-lite · Cohere v3.5 (legacy) · faster-whisper (audio) · fastText (language detection)
-**Frontend**: Vue 3 PWA para tablets industriales
-**Operacion**: Docker + docker-compose · nginx · Sentry · Prometheus · OpenTelemetry
-**Multilingual**: fastText lid.218 + lingua-language-detector (secondary)
+- **Backend**: FastAPI · Celery + Redis · Pydantic v2 · structlog
+- **Base vectorial**: Qdrant autoalojado, con filtros por metadata
+- **Modelos**: OpenAI GPT (juez) · Claude Haiku (juez y contextual retrieval
+  con caché) · Mistral OCR · Voyage rerank-2.5-lite · Cohere v3.5 (fallback) ·
+  faster-whisper (audio)
+- **Detección de idioma**: fastText lid.218, con lingua-language-detector como
+  respaldo
+- **Frontend**: PWA en Vue 3 para tablets industriales
+- **Operación**: Docker y docker-compose · nginx · Sentry · Prometheus ·
+  OpenTelemetry
 
-## Lecciones que me llevo
+## Lecciones
 
-- **Falla silenciosa = bug más caro**: subimos el timeout de Mistral OCR de 180s a
-  300s porque manuales de 140+ páginas escaneadas quedaban sin indexar en silencio.
-- **Bug real por Unicode**: "¿Qué hora es?" contestaba con info de un panel de control
-  porque los patterns no normalizaban NFD. "que hora es" (sin acento) funcionaba.
-  Fix: normalizar antes del regex.
+- **La falla silenciosa es la más cara**: subimos el timeout de Mistral OCR de
+  180 a 300 segundos porque los manuales escaneados de más de 140 páginas
+  quedaban sin indexar y nada lo advertía.
+- **Un bug de Unicode**: "¿Qué hora es?" se respondía con información de un
+  panel de control porque los patrones no normalizaban a NFD, mientras que
+  "que hora es", sin tilde, funcionaba. La corrección fue normalizar el texto
+  antes de aplicar el regex.
 - **A veces la solución es no llamar al LLM**: el modelo no respetaba la
   instrucción de responder breve a saludos y despedidas. Ahora un detector
   reconoce esos mensajes y devuelve una respuesta fija.

@@ -14,64 +14,70 @@ donde corra. La calidad de recuperación va en CI, junto a los tests.
 
 ## Casos de estudio
 
-Cada uno documenta un sistema real —con nombres y clientes genéricos— contado
-como lo pensé, lo decidí y lo medí. Sin código de cliente: el código público
-vive en los repos de abajo.
+Cada caso documenta un sistema real: el problema, las restricciones y las
+decisiones que tomé. Uso nombres y clientes genéricos y no incluyo código de
+clientes; el código que publico está en los repositorios de más abajo.
 
 1. [**RAG industrial con doble juez y circuit breaker**](./case-studies/01-rag-industrial.md)
-   — sistema RAG para un cliente industrial europeo, desplegado con GPU en su
-   infraestructura. Faithfulness
-   0,96 mediana y context precision 0,997 medidos con RAGAS sobre tráfico real,
-   capturados semanalmente como baselines versionados. CRAG con doble juez
-   OpenAI + Claude, reranking Voyage con circuit breaker hacia Cohere, chunking
-   estructural y contextual retrieval.
+
+   Sistema RAG sobre manuales técnicos para un cliente industrial europeo,
+   desplegado con GPU en su infraestructura. Faithfulness con mediana de 0,96
+   y context precision de 0,997, medidas con RAGAS sobre tráfico real de
+   producción y capturadas semanalmente como baselines versionados. CRAG con
+   doble juez (OpenAI y Claude), reranking con Voyage y circuit breaker hacia
+   Cohere, chunking estructural y contextual retrieval.
 
 2. [**Agente de voz en tiempo real**](./case-studies/02-voice-agent-realtime.md)
-   — call center de IA con streaming bidireccional sobre WebSockets. Manejo de
-   back-pressure, reconexión y adapter para Twilio Media Streams.
 
-3. [**Migración SAP BW → BigQuery**](./case-studies/03-sap-to-bigquery.md)
-   — 8 modelos críticos migrados con Dataform, preservando las reglas de negocio
-   SAP. Queries optimizadas: −25% de tiempo y −50% de costo.
+   Call center de IA con streaming bidireccional sobre WebSockets. Manejo de
+   back-pressure, reconexión y un adapter para Twilio Media Streams.
+
+3. [**Migración de SAP BW a BigQuery**](./case-studies/03-sap-to-bigquery.md)
+
+   Ocho modelos críticos migrados con Dataform, con las reglas de negocio de
+   SAP preservadas. Consultas optimizadas: −25% de tiempo de procesamiento y
+   −50% de costo.
 
 4. [**SaaS multi-tenant type-safe de punta a punta**](./case-studies/04-multi-tenant-saas.md)
-   — CRM para empresas de servicios en España. Next.js + tRPC + Drizzle +
-   PostgreSQL, WebAuthn/passkeys, rate limiting y tests con Playwright + Vitest.
+
+   CRM para empresas de servicios en España, con Next.js, tRPC, Drizzle y
+   PostgreSQL. WebAuthn/passkeys, rate limiting y tests con Playwright y Vitest.
 
 5. [**Patrón adapter para integración fiscal**](./case-studies/05-adapter-pattern-sii.md)
-   — API interna en FastAPI para extraer el registro de compras y ventas del
-   servicio tributario chileno. Adapter intercambiable entre proveedor comercial
-   y conexión directa por variable de entorno, con el contrato downstream
-   invariante.
+
+   API interna en FastAPI para extraer el registro de compras y ventas del
+   servicio tributario chileno. Una variable de entorno elige el adapter, entre
+   un proveedor comercial y la conexión directa, sin cambiar el contrato con
+   los consumidores.
 
 ## Código público
 
 **Extraído de sistemas en producción**, con las partes transferibles y las
 decisiones difíciles documentadas:
 
-- [**rag-hybrid-citations**](https://github.com/jpfiguer/rag-hybrid-citations)
-  — RAG híbrido sobre Postgres, con búsqueda densa en pgvector y búsqueda de
+- [**rag-hybrid-citations**](https://github.com/jpfiguer/rag-hybrid-citations):
+  RAG híbrido sobre Postgres, con búsqueda densa en pgvector y búsqueda de
   texto completo de Postgres (`ts_rank_cd`) fusionadas con RRF dentro de SQL.
   Las citas apuntan a documento y página, y cuando el corpus no tiene la
   respuesta, el sistema se niega explícitamente a responder. Su `DECISIONS.md`
   documenta bugs y decisiones que solo aparecen cuando un sistema lleva tiempo
   corriendo con datos reales.
-- [**guided-visual-check**](https://github.com/jpfiguer/guided-visual-check)
-  — inspección visual contra una imagen de referencia. El modelo reporta
-  evidencia con confianza; la decisión vive en código auditable, no en el
-  prompt. Los ángulos y orientaciones se le entregan medidos, porque es donde
-  los modelos de visión fallan con seguridad aparente.
-- [**sistema-helper-en**](https://github.com/jpfiguer/sistema-helper-en)
-  — entrenador de entrevistas en inglés con pipeline de voz en tiempo real.
-  Las métricas las calcula el código y el juicio lo da el modelo, separados por
+- [**guided-visual-check**](https://github.com/jpfiguer/guided-visual-check):
+  inspección visual contra una imagen de referencia. El modelo reporta
+  evidencia con su nivel de confianza y la decisión la toma código auditable.
+  Los ángulos y las orientaciones se le entregan ya medidos, porque en ese tipo
+  de medición los modelos de visión son poco confiables.
+- [**sistema-helper-en**](https://github.com/jpfiguer/sistema-helper-en):
+  entrenador de entrevistas en inglés con pipeline de voz en tiempo real. El
+  código calcula las métricas y el modelo aporta el juicio, separados por
   diseño.
 
 **Implementación de referencia**, con código sintético que muestra patrones que
 uso sin material de clientes:
 
-- [**gcp-etl-pipeline**](https://github.com/jpfiguer/gcp-etl-pipeline)
-  — Apache Beam sobre Dataflow, Pub/Sub, BigQuery, Dataform y Terraform. Batch
-  y streaming, deduplicación, particionado dinámico y validación post-carga.
+- [**gcp-etl-pipeline**](https://github.com/jpfiguer/gcp-etl-pipeline):
+  Apache Beam sobre Dataflow, Pub/Sub, BigQuery, Dataform y Terraform. Batch y
+  streaming, deduplicación, particionado dinámico y validación post-carga.
 
 ## Stack
 

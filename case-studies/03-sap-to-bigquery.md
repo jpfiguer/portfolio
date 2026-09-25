@@ -1,21 +1,23 @@
-# Migración SAP BW → BigQuery con Dataform
+# Migración de SAP BW a BigQuery con Dataform
 
 > Ocho modelos de datos críticos migrados, con las reglas de negocio de SAP
 > preservadas. Consultas optimizadas: −25% de tiempo de procesamiento y −50%
 > de costo.
 
-## Problema
+## Punto de partida
 
-Cliente con 8 modelos críticos en SAP BW: caros, lentos para análisis y bloqueando
-la modernizacion del stack analitico. Consumidores downstream (dashboards, jobs
-programados, reportes ad-hoc) dependen de estos modelos.
+El cliente tenía ocho modelos críticos en SAP BW, caros y lentos para análisis,
+que frenaban la modernización del stack analítico. De ellos dependían
+consumidores downstream: dashboards, jobs programados y reportes ad hoc.
 
 Restricciones:
 
-- **Cero regresiones** para consumidores downstream
-- Preservar jerarquias de dimensiones y reglas de negocio SAP intactas
-- Migrar en cutover coordinado (no re-work masivo en cascada)
-- Habilitar análisis a escala que SAP BW no permitia
+- Ningún consumidor downstream podía romperse.
+- Las jerarquías de dimensiones y las reglas de negocio de SAP tenían que
+  quedar intactas.
+- La migración tenía que ser coordinada, sin obligar a rehacer en cascada el
+  trabajo de los consumidores.
+- Habilitar análisis a una escala que SAP BW no permitía.
 
 ## Arquitectura
 
@@ -29,99 +31,106 @@ flowchart TB
 
   subgraph Ingesta
     A --> D[Extractores SQL + JSON]
-    B --> E[Beam + Dataflow<br/>CDC via Pub/Sub]
-    C --> F[Airflow scheduled]
+    B --> E[Beam + Dataflow<br/>CDC vía Pub/Sub]
+    C --> F[Airflow programado]
   end
 
   D & E & F --> G[(BigQuery staging<br/>raw)]
 
-  subgraph Transformacion
-    G --> H[Dataform bronze<br/>limpieza + types]
+  subgraph Transformacion [Transformación]
+    G --> H[Dataform bronze<br/>limpieza + tipos]
     H --> I[Dataform silver<br/>reglas de negocio SAP<br/>preservadas]
-    I --> J[Dataform gold<br/>data marts]
+    I --> J[Dataform gold<br/>data marts en tablas]
   end
 
-  subgraph Orquestacion
-    K[Cloud Composer / Airflow<br/>dependencies + reintentos]
+  subgraph Orquestacion [Orquestación]
+    K[Cloud Composer / Airflow<br/>dependencias + reintentos]
   end
 
   K --> H
   K --> I
   K --> J
 
-  subgraph Validacion
-    L[Cloud Function post-load<br/>counts + checksums]
+  subgraph Validacion [Validación]
+    L[Cloud Function post-carga<br/>counts + checksums]
     L --> M[BigQuery Monitoring<br/>alertas proactivas]
   end
 
-  J --> N[Looker Studio<br/>live + manual<br/>por rol y geografia]
+  J --> N[Looker Studio<br/>live + manual<br/>por rol y geografía]
 
   L -.valida.-> H & I & J
 ```
 
-## Decisiones clave
+## Cómo se resolvió
 
-### Dataform para modelado (no dbt)
+### Dataform en vez de dbt
 
-- Nativo en BigQuery, sin cluster separado, factura por query no por container
+- Es nativo de BigQuery: no requiere un cluster aparte y el costo es el de las
+  consultas que ejecuta.
 - SQLX mantiene el SQL tal cual y usa plantillas JavaScript para la
-  modularidad y los tests
-- Versionado en Git, code review por PR
-- Assertions built-in para reglas de negocio (`rowConditions`, `uniqueKey`, etc.)
+  modularidad y los tests.
+- Versionado en Git, con revisión de código en cada PR.
+- Assertions integradas para las reglas de negocio (`rowConditions`,
+  `uniqueKey`, etc.).
 
-### Preservacion de jerarquias SAP
+### Jerarquías de SAP preservadas
 
-Los modelos SAP BW tienen jerarquias multi-nivel (empresa → division → linea).
-Los reimplemente como tablas de dimensiones con `hierarchy_level`, `parent_id`,
-`path_root_to_leaf`. Los reportes downstream migran sin cambiar joins.
+Los modelos de SAP BW tienen jerarquías de varios niveles (empresa, división,
+línea). Las reimplementé como tablas de dimensiones con `hierarchy_level`,
+`parent_id` y `path_root_to_leaf`, así que los reportes downstream migraron sin
+cambiar sus joins.
 
-### Reglas de negocio en silver, no en gold
+### Las reglas de negocio viven en silver
 
-Silver = reglas de negocio SAP aplicadas (deduplicación por natural key,
-resolución de conflictos, enrichment). Gold = cortes agregados listos para
-consumo (marts). Silver es la fuente de verdad; gold es la capa de consumo y se
-construye como tablas.
+Silver aplica las reglas de negocio de SAP: deduplicación por llave natural,
+resolución de conflictos y enriquecimiento. Gold contiene los cortes agregados
+listos para consumo (marts). Silver es la fuente de verdad; gold es la capa de
+consumo y se construye como tablas.
 
-### Validación post-load con Cloud Function + BigQuery Monitoring
+### Validación post-carga con Cloud Function y BigQuery Monitoring
 
-Cada bulk insert dispara una Cloud Function que:
+Cada carga masiva dispara una Cloud Function que:
 
-- Cuenta filas nuevas vs esperadas (dentro de un rango tolerable)
-- Verifica checksum de columnas criticas
-- Compara agregados vs fuente (SAP durante migración, PostgreSQL en steady state)
-- Si algo falla → alerta a Slack + rollback opcional
+- cuenta las filas nuevas contra las esperadas, dentro de un margen tolerable;
+- verifica checksums de las columnas críticas;
+- compara agregados con la fuente: SAP durante la migración y PostgreSQL en
+  operación normal;
+- si algo falla, envía una alerta a Slack y, opcionalmente, revierte la carga.
 
 **Resultado**: el equipo de analytics dejó de hacer reconciliaciones manuales.
 
-### Optimización de queries (−25% tiempo, −50% costos)
+### Optimización de consultas (−25% de tiempo, −50% de costo)
 
-Tecnicas aplicadas por prioridad:
+Técnicas aplicadas, en orden de prioridad:
 
-1. **Particionamiento por fecha** (evento o carga según caso)
-2. **Clustering por columnas filtradas frecuentemente** (empresa, division)
+1. **Particionamiento por fecha**, de evento o de carga según el caso.
+2. **Clustering por las columnas que más se filtran** (empresa, división).
 3. **Materialización selectiva**: tablas materializadas para los agregados de
-   uso frecuente y vistas normales para el resto
-4. **Slot reservations donde el patron es predecible**; pago por query donde no
-5. **Eliminacion de `SELECT *`** y casts costosos
-6. **Tablas externas** para sources que no se necesitan replicar en BQ
+   uso frecuente y vistas normales para el resto.
+4. **Reservas de slots donde el patrón de uso es predecible**, y pago por
+   consulta donde no lo es.
+5. **Eliminación de `SELECT *`** y de casts costosos.
+6. **Tablas externas** para fuentes que no hace falta replicar en BigQuery.
 
 ## Stack
 
-- BigQuery + Dataform + Cloud Composer / Airflow
+- BigQuery, Dataform y Cloud Composer / Airflow
 - Apache Beam + Dataflow para CDC de PostgreSQL
 - Pub/Sub como canal de eventos
-- Cloud Functions para validación post-load
+- Cloud Functions para la validación post-carga
 - BigQuery Monitoring para alertas
-- Looker Studio para consumo final
-- Terraform para infra reproducible
+- Looker Studio para el consumo final
+- Terraform para infraestructura reproducible
 - structlog para logging estructurado
 
-## Anti-patterns evitados
+## Qué evitamos
 
-- ❌ **Migrar todo de una vez sin cutover coordinado**: garantia de outage
-- ❌ **Reescribir reglas de negocio "mejor"**: multiplicas el trabajo de validación
-- ❌ **Optimizar queries sin medir baseline**: no sabes si mejoraste
-- ❌ **Materializar todo** — se paga en storage y refresh
+- **Migrar todo de una vez**: cualquier error llega a todos los consumidores al
+  mismo tiempo.
+- **Reescribir las reglas de negocio para "mejorarlas"**: multiplica el trabajo
+  de validación.
+- **Optimizar consultas sin medir antes**: no hay cómo saber si mejoraron.
+- **Materializar todo**: se paga en almacenamiento y en refrescos.
 
 ## Código de referencia
 
@@ -134,5 +143,7 @@ reproduce parte de estos patrones con código sintético:
 
 ## Lecciones
 
-- **Baseline antes de optimizar**: sin número de arranque, no se sabe si mejoro
-- **Dataform assertions atrapan cambios silenciosos**: schema drift del origen SAP
+- **Medir la línea base antes de optimizar**: sin un número de partida no hay
+  cómo saber si algo mejoró.
+- **Las assertions de Dataform detectan cambios silenciosos**, como el schema
+  drift en el origen SAP.
