@@ -19,11 +19,14 @@ Restricciones:
 
 ## Métricas en producción
 
-- **Faithfulness 0,96 mediana** (0,86 media) y **context precision 0,997**, medidos
-  con RAGAS sobre tráfico real y capturados semanalmente como baselines versionados
-- **100% de correcciones históricas del supervisor resueltas o mejoradas**
-- **0 regresiones** en el set de fallos conocidos
-- **Feedback negativo reducido casi a la mitad** vs baseline sin CRAG
+Medidas con RAGAS sobre tráfico real de producción y capturadas semanalmente
+como baselines versionados:
+
+- **Faithfulness**: 0,96 de mediana y 0,855 de media.
+- **Context precision**: 0,997.
+
+Las correcciones históricas del supervisor del cliente forman el set de
+regresión que corre en CI.
 
 ## Arquitectura
 
@@ -63,10 +66,15 @@ sin decir de que maquina o seccion.
 **Fix**: antes de embedear cada chunk, un LLM chico genera 50-100 tokens de
 "anclaje situacional" (donde vive el chunk en el documento).
 
-**Costo**: usamos Claude Haiku con **prompt caching** — el documento va en el
-bloque cacheado (TTL 5 min), solo cambia el chunk. Re-ingesta de 1.500 chunks
-en ~15 min por ~$1. Ahorro reportado: −49% retrievals fallidos solo, −67% con
-reranking encima.
+**Costo**: usamos Claude Haiku con **prompt caching**. El documento va en el
+bloque cacheado (TTL de 5 minutos) y en cada llamada solo cambia el chunk, así
+que el documento se escribe una vez en la caché y las llamadas siguientes lo
+leen a una fracción del precio.
+
+**Referencia**: los resultados que publicó Anthropic combinan embeddings
+contextuales, BM25 contextual y reranking. Este sistema usa embeddings
+contextuales y reranking, sin BM25, porque en este corpus la búsqueda híbrida
+empeoró la calidad (ver más abajo).
 
 **Fallback**: OpenAI gpt-4o-mini (sin cache nativo de 5 min, más lento).
 
@@ -80,12 +88,14 @@ abren el breaker. `_RECOVERY_WINDOW_S=60s` antes del probe. Threading:
 state a nivel modulo compartido entre asyncio tasks, un lock. No requiere
 estado cross-process — cada worker cura solo.
 
-**Resultado**: latencia en modo degradado bajó de 5s/query a ~0ms (skip explícito
-hasta el probe).
+**Resultado**: mientras el breaker está abierto, las consultas pasan directo al
+siguiente proveedor, sin esperar el timeout, hasta que la consulta de prueba
+confirma que el proveedor volvió.
 
-**Migración**: Cohere v3.5 multilingual → Voyage rerank-2.5-lite (+6-8% en 31 idiomas
-según benchmarks internos, 200M tokens free tier). El fallback local (cross-encoder
-en CPU) siempre disponible como último recurso.
+**Migración**: el reranker principal pasó de Cohere v3.5 multilingual a Voyage
+rerank-2.5-lite, por calidad multilingüe y por costo. Cohere quedó como
+fallback, y un cross-encoder local en CPU está siempre disponible como último
+recurso.
 
 ### CRAG con doble juez OpenAI + Claude
 
@@ -109,16 +119,20 @@ corto pero casi nula en respuestas largas. Nadie valido sobre cross-document lea
 en manuales industriales. Por eso va detras de flag y se A/B testea contra gold
 antes de activar. **Medir antes de shippear**.
 
-### 4 pipelines CI/CD separados
+### Cinco workflows de CI
 
-- **tests**: unit + integración
-- **security**: scans de dependencias, CVE, secretos
-- **regression**: set de fallos conocidos del supervisor, cualquier regresion bloquea merge
-- **eval**: Ragas (faithfulness, answer relevancy, context precision/recall) + gold set
+- **Tests**: pruebas unitarias y de integración.
+- **Evaluación**: RAGAS (faithfulness, answer relevancy, context precision y
+  context recall) y un gold set.
+- **Regresión**: el set de fallos conocidos que registró el supervisor.
+  Cualquier regresión bloquea el merge.
+- **Seguridad**: escaneo de dependencias, CVE y secretos.
+- **Captura de baseline**: guarda las métricas como baselines versionados.
 
 ## Anti-patterns que evitamos
 
-- ❌ **Hybrid retrieval sin medir**: lo probamos, bajó la calidad −15,4% en nuestro corpus. Fuera.
+- ❌ **Búsqueda híbrida sin medir**: la probamos y en este corpus empeoró la
+  calidad, así que quedó fuera.
 - ❌ **Un solo juez**: bias del proveedor no detectable
 - ❌ **Reranker único sin fallback**: la outage de Cohere lo demostro
 - ❌ **Chunk fancy sin baseline**: agrego complejidad, gano marginal

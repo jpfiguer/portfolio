@@ -99,8 +99,8 @@ afecta a los demas. Configuración por plan (free/pro/enterprise).
 
 ### Tests
 
-- **Vitest** para unit (~200 tests)
-- **Playwright** para E2E (~30 flows críticos: login, alta cliente, contrato, cita, factura)
+- **Vitest** para tests unitarios
+- **Playwright** para E2E de los flujos críticos: login, alta de cliente, contrato, cita y factura
 - **Testing Library** para componentes UI aislados
 
 ### Generacion de PDF con `@react-pdf/renderer`

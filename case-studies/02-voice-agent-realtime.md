@@ -92,6 +92,7 @@ al final de cada turno con un LLM chico. No en el critical path del audio.
 
 ## Lecciones
 
-- **Los WebSockets fallan más de lo que uno cree** — reconexión robusta es 30% del código
+- **Los WebSockets fallan más de lo que uno cree**, y la reconexión robusta se
+  lleva una parte importante del código
 - **Buffer mal calibrado = voz cortada**: mejor un chunk más chico y más frecuente
 - **La tipificacion post-turno es más barata que in-line**: no bloquea audio y usa modelo chico

@@ -1,7 +1,8 @@
 # Migración SAP BW → BigQuery con Dataform
 
-> 8 modelos de datos críticos migrados. Reglas de negocio SAP preservadas.
-> Queries optimizadas: −25% tiempo, −50% costos en promedio.
+> Ocho modelos de datos críticos migrados, con las reglas de negocio de SAP
+> preservadas. Consultas optimizadas: −25% de tiempo de procesamiento y −50%
+> de costo.
 
 ## Problema
 
@@ -88,8 +89,7 @@ Cada bulk insert dispara una Cloud Function que:
 - Compara agregados vs fuente (SAP durante migración, PostgreSQL en steady state)
 - Si algo falla → alerta a Slack + rollback opcional
 
-**Resultado**: 100% de precisión en cargas medido. Equipo analytics dejó de hacer
-reconciliaciones manuales.
+**Resultado**: el equipo de analytics dejó de hacer reconciliaciones manuales.
 
 ### Optimización de queries (−25% tiempo, −50% costos)
 
@@ -101,16 +101,6 @@ Tecnicas aplicadas por prioridad:
 4. **Slot reservations donde el patron es predecible**; pago por query donde no
 5. **Eliminacion de `SELECT *`** y casts costosos
 6. **Tablas externas** para sources que no se necesitan replicar en BQ
-
-Medicion: benchmark del top-20 queries antes/después sobre 30 dias. Promedio
-ponderado por volumen.
-
-### Cutover coordinado
-
-- Doble escritura durante 4 semanas (SAP y BigQuery en paralelo)
-- Consumidores migran uno a uno con feature flag
-- Semana 5: SAP en read-only, BigQuery única fuente
-- Semana 6+: SAP apagado
 
 ## Stack
 
@@ -142,5 +132,4 @@ Ver [`gcp-etl-pipeline`](https://github.com/jpfiguer/gcp-etl-pipeline):
 ## Lecciones
 
 - **Baseline antes de optimizar**: sin número de arranque, no se sabe si mejoro
-- **Doble escritura > cutover big-bang**: reduce riesgo mucho
 - **Dataform assertions atrapan cambios silenciosos**: schema drift del origen SAP
