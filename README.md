@@ -2,7 +2,7 @@
 
 **AI Engineer con base de ingeniero de datos** · Google Cloud Generative AI Leader · Santiago, Chile
 
-Diez años construyendo pipelines de datos en producción sobre GCP, y los dos
+Diez años en ingeniería de datos, los últimos siete sobre GCP, y los dos
 últimos llevando sistemas de IA de prototipo a producción con métricas.
 
 Mi criterio: un sistema de IA que no se puede evaluar es un prototipo, corra
