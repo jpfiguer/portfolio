@@ -45,7 +45,7 @@ vive en los repos de abajo.
 
 ## Código público
 
-**Extraído de sistemas en producción** — las partes transferibles, con las
+**Extraído de sistemas en producción**, con las partes transferibles y las
 decisiones difíciles documentadas:
 
 - [**rag-hybrid-citations**](https://github.com/jpfiguer/rag-hybrid-citations)
@@ -62,23 +62,13 @@ decisiones difíciles documentadas:
   — entrenador de entrevistas en inglés con pipeline de voz en tiempo real.
   Las métricas las calcula el código y el juicio lo da el modelo, separados por
   diseño.
-- [**surveybq-engine**](https://github.com/jpfiguer/surveybq-engine)
-  — motor de encuestas CSAT/NPS sin dependencias ni build, con salida a
-  BigQuery. Estático a propósito: quien escanea un QR llega con un navegador
-  cualquiera, en algún teléfono, a veces sin señal.
 
-**Implementaciones de referencia** — patrones que uso, escritos como código
-sintético para ilustrarlos sin material de cliente:
+**Implementación de referencia**, con código sintético que muestra patrones que
+uso sin material de clientes:
 
 - [**gcp-etl-pipeline**](https://github.com/jpfiguer/gcp-etl-pipeline)
   — Apache Beam sobre Dataflow, Pub/Sub, BigQuery, Dataform y Terraform. Batch
   y streaming, deduplicación, particionado dinámico y validación post-carga.
-- [**rag-crag-reference**](https://github.com/jpfiguer/rag-crag-reference)
-  — RAG con circuit breaker entre proveedores de reranking, doble juez
-  OpenAI + Claude, chunking estructural y pipeline de evaluación con RAGAS.
-- [**multi-tenant-saas-starter**](https://github.com/jpfiguer/multi-tenant-saas-starter)
-  — Next.js + tRPC + Drizzle + PostgreSQL con aislamiento por tenant desde el
-  primer día.
 
 ## Stack
 

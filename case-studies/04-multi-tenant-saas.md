@@ -129,15 +129,6 @@ Alternativa a Puppeteer: más rápido, sin browser en runtime.
 - Vitest + Playwright + Testing Library
 - Tailwind + shadcn/ui + Radix
 
-## Código de referencia sintético
-
-Ver [`multi-tenant-saas-starter`](https://github.com/jpfiguer/multi-tenant-saas-starter):
-
-- Estructura de carpetas
-- Middleware de tenant + auth
-- Tests que prueban aislamiento
-- Ejemplo de procedure tRPC con Drizzle
-
 ## Lecciones
 
 - **El middleware que inyecta `tenantId` es la única cosa que no se debe poder saltar**: escribir tests especificos para atacarlo

@@ -132,14 +132,6 @@ antes de activar. **Medir antes de shippear**.
 **Operacion**: Docker + docker-compose · nginx · Sentry · Prometheus · OpenTelemetry
 **Multilingual**: fastText lid.218 + lingua-language-detector (secondary)
 
-## Código de referencia sintético
-
-Los patrones están reproducidos en [`rag-crag-reference`](https://github.com/jpfiguer/rag-crag-reference):
-
-- `circuit_breaker.py` — el patron completo con tests
-- `crag_dual_judge.py` — orquestacion de los dos jueces con consenso
-- `contextual_retrieval.py` — llamada con prompt caching y fallback
-
 ## Lecciones que me llevo
 
 - **Falla silenciosa = bug más caro**: subimos el timeout de Mistral OCR de 180s a

@@ -85,11 +85,6 @@ Coolify es un PaaS self-hosted. Docker + docker-compose para local, mismo
 - ❌ **Cache "por si acaso"**: solo cacheo lo que tiene sentido con TTL claro
 - ❌ **Tests que llaman al servicio real**: costoso, flaky, mata el CI
 
-## Código de referencia sintético
-
-El patron esta reproducido en `rag-crag-reference` (circuit breaker + adapter
-para rerankers) y como código standalone en el repo umbrella.
-
 ## Lecciones
 
 - **Un adapter permite migrar sin dolor**: MVP con comercial, control con directo, sin romper consumidores
