@@ -6,13 +6,14 @@
 
 ## Problema
 
-Necesitabamos integrar la API tributaria chilena — el registro de compras y
-ventas — para varios flujos internos (facturacion, contabilidad, compliance).
+Necesitábamos el registro de compras y ventas del servicio tributario para
+varios flujos internos: facturación, contabilidad y cumplimiento normativo.
 
 Restricciones:
 
-- La API oficial del servicio tributario solo expone scraping directo (portal
-  con certificado)
+- El servicio tributario no ofrece una API pública documentada para este
+  registro. La vía directa es su portal web, autenticado con certificado
+  digital.
 - Los proveedores comerciales son rapidos al MVP pero tienen rate limits y
   costos que crecen con volumen
 - Cambiar de un enfoque al otro no debe romper a los consumidores downstream

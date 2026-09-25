@@ -1,7 +1,8 @@
 # RAG industrial con doble juez y circuit breaker
 
-> Sistema RAG on-premise para un cliente industrial europeo. En producción,
-> uso diario, con métricas medibles.
+> Sistema RAG sobre manuales técnicos para un cliente industrial europeo.
+> Corre en la infraestructura del cliente, con GPU, y está en producción con
+> uso diario.
 
 ## Problema
 
@@ -11,7 +12,8 @@ correctas — un asistente que **no invente**.
 
 Restricciones:
 
-- On-premise (dato sensible dentro de la red del cliente)
+- Despliegue en la infraestructura del cliente, con GPU. El OCR, la
+  contextualización de chunks, el reranking y los jueces usan APIs externas.
 - Multi-idioma
 - Debe manejar tablas, diagramas, imágenes de tablets
 - Debe rendir cuentas: métricas de calidad publicables y reproducibles
@@ -46,7 +48,7 @@ flowchart LR
   I --> J[Rerank Voyage<br/>circuit breaker]
   J -->|fallback| J2[Rerank Cohere]
   J & J2 -->|fallback| J3[Rerank local CPU]
-  J --> K[Top-k 8]
+  J & J2 & J3 --> K[Top-k 8]
   K --> L[Chunk gating<br/>LLM scorer 0-3<br/>feature flag]
   L --> M[Context builder + citas]
   M --> N[LLM generador]
@@ -76,7 +78,8 @@ contextuales, BM25 contextual y reranking. Este sistema usa embeddings
 contextuales y reranking, sin BM25, porque en este corpus la búsqueda híbrida
 empeoró la calidad (ver más abajo).
 
-**Fallback**: OpenAI gpt-4o-mini (sin cache nativo de 5 min, más lento).
+**Fallback**: OpenAI gpt-4o-mini. OpenAI también cachea prompts, de forma
+automática y sin que haya que marcar bloques.
 
 ### Reranking con circuit breaker
 
@@ -140,8 +143,8 @@ antes de activar. **Medir antes de shippear**.
 ## Stack
 
 **Backend**: FastAPI · Celery + Redis · Pydantic v2 · structlog
-**Vector DB**: Qdrant (on-premise, filtrable por metadata)
-**Modelos**: OpenAI GPT (juez 1, generacion) · Claude Haiku (juez 2 + contextual retrieval con cache) · Mistral OCR · Voyage rerank-2.5-lite · Cohere v3.5 (legacy) · faster-whisper (audio) · fastText (language detection)
+**Vector DB**: Qdrant (autoalojado, filtrable por metadata)
+**Modelos**: OpenAI GPT (juez 1) · Claude Haiku (juez 2 + contextual retrieval con cache) · Mistral OCR · Voyage rerank-2.5-lite · Cohere v3.5 (legacy) · faster-whisper (audio) · fastText (language detection)
 **Frontend**: Vue 3 PWA para tablets industriales
 **Operacion**: Docker + docker-compose · nginx · Sentry · Prometheus · OpenTelemetry
 **Multilingual**: fastText lid.218 + lingua-language-detector (secondary)
@@ -153,5 +156,6 @@ antes de activar. **Medir antes de shippear**.
 - **Bug real por Unicode**: "¿Qué hora es?" contestaba con info de un panel de control
   porque los patterns no normalizaban NFD. "que hora es" (sin acento) funcionaba.
   Fix: normalizar antes del regex.
-- **A veces el fix es no llamar al LLM**: llama3:8b no respeta la instruccion de
-  brevedad en saludos. Detector de farewell + respuesta fija = mejor UX y $0.
+- **A veces la solución es no llamar al LLM**: el modelo no respetaba la
+  instrucción de responder breve a saludos y despedidas. Ahora un detector
+  reconoce esos mensajes y devuelve una respuesta fija.

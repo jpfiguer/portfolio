@@ -64,9 +64,10 @@ flowchart TB
 ### Dataform para modelado (no dbt)
 
 - Nativo en BigQuery, sin cluster separado, factura por query no por container
-- SQLX preserva SQL puro con jinja-like para modularidad y tests
+- SQLX mantiene el SQL tal cual y usa plantillas JavaScript para la
+  modularidad y los tests
 - Versionado en Git, code review por PR
-- Assertions built-in para reglas de negocio (row_conditions, uniqueKey, etc.)
+- Assertions built-in para reglas de negocio (`rowConditions`, `uniqueKey`, etc.)
 
 ### Preservacion de jerarquias SAP
 
@@ -78,7 +79,8 @@ Los reimplemente como tablas de dimensiones con `hierarchy_level`, `parent_id`,
 
 Silver = reglas de negocio SAP aplicadas (deduplicación por natural key,
 resolución de conflictos, enrichment). Gold = cortes agregados listos para
-consumo (marts). Silver es la fuente de verdad; gold es una vista optimizada.
+consumo (marts). Silver es la fuente de verdad; gold es la capa de consumo y se
+construye como tablas.
 
 ### Validación post-load con Cloud Function + BigQuery Monitoring
 
@@ -97,7 +99,8 @@ Tecnicas aplicadas por prioridad:
 
 1. **Particionamiento por fecha** (evento o carga según caso)
 2. **Clustering por columnas filtradas frecuentemente** (empresa, division)
-3. **Materialización selectiva**: tablas materializadas para agregados usados >10x/día; vistas normales para el resto
+3. **Materialización selectiva**: tablas materializadas para los agregados de
+   uso frecuente y vistas normales para el resto
 4. **Slot reservations donde el patron es predecible**; pago por query donde no
 5. **Eliminacion de `SELECT *`** y casts costosos
 6. **Tablas externas** para sources que no se necesitan replicar en BQ
@@ -120,14 +123,14 @@ Tecnicas aplicadas por prioridad:
 - ❌ **Optimizar queries sin medir baseline**: no sabes si mejoraste
 - ❌ **Materializar todo** — se paga en storage y refresh
 
-## Código de referencia sintético
+## Código de referencia
 
-Ver [`gcp-etl-pipeline`](https://github.com/jpfiguer/gcp-etl-pipeline):
+El repositorio público [`gcp-etl-pipeline`](https://github.com/jpfiguer/gcp-etl-pipeline)
+reproduce parte de estos patrones con código sintético:
 
-- Pipeline Beam batch + streaming
-- Dataform con estructura bronze/silver/gold
-- Cloud Function de validación
-- Terraform del stack completo
+- Pipelines de Apache Beam en Dataflow, batch y streaming, con Pub/Sub
+- Dataform con capas bronze, silver y gold
+- Terraform para Pub/Sub, BigQuery y las cuentas de servicio
 
 ## Lecciones
 

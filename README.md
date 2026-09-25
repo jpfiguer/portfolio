@@ -19,7 +19,8 @@ como lo pensé, lo decidí y lo medí. Sin código de cliente: el código públi
 vive en los repos de abajo.
 
 1. [**RAG industrial con doble juez y circuit breaker**](./case-studies/01-rag-industrial.md)
-   — sistema RAG on-premise para un cliente industrial europeo. Faithfulness
+   — sistema RAG para un cliente industrial europeo, desplegado con GPU en su
+   infraestructura. Faithfulness
    0,96 mediana y context precision 0,997 medidos con RAGAS sobre tráfico real,
    capturados semanalmente como baselines versionados. CRAG con doble juez
    OpenAI + Claude, reranking Voyage con circuit breaker hacia Cohere, chunking
@@ -49,10 +50,12 @@ vive en los repos de abajo.
 decisiones difíciles documentadas:
 
 - [**rag-hybrid-citations**](https://github.com/jpfiguer/rag-hybrid-citations)
-  — RAG híbrido sobre Postgres + pgvector: denso y BM25 fusionados con RRF
-  dentro de SQL, citas que apuntan a documento y página, y rechazo explícito
-  cuando el corpus no tiene la respuesta. Su `DECISIONS.md` documenta ocho bugs
-  pagados en producción.
+  — RAG híbrido sobre Postgres, con búsqueda densa en pgvector y búsqueda de
+  texto completo de Postgres (`ts_rank_cd`) fusionadas con RRF dentro de SQL.
+  Las citas apuntan a documento y página, y cuando el corpus no tiene la
+  respuesta, el sistema se niega explícitamente a responder. Su `DECISIONS.md`
+  documenta bugs y decisiones que solo aparecen cuando un sistema lleva tiempo
+  corriendo con datos reales.
 - [**guided-visual-check**](https://github.com/jpfiguer/guided-visual-check)
   — inspección visual contra una imagen de referencia. El modelo reporta
   evidencia con confianza; la decisión vive en código auditable, no en el
